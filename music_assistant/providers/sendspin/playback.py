@@ -28,8 +28,13 @@ from music_assistant.providers.sendspin.bridge_role import (
     BridgePlayerRole,
 )
 
+from .constants import (
+    CONF_PRODUCER_BUFFER_LIMIT,
+    DEFAULT_PRODUCER_BUFFER_LIMIT,
+)
+
 if TYPE_CHECKING:
-    from .player import SendspinPlayer
+    from .player import SendspinBasePlayer, SendspinPlayer
     from .provider import SendspinProvider
 
 
@@ -68,13 +73,22 @@ _PRODUCER_SLICE_US = 100_000
 # Max pending chunks between producer and committer before the producer blocks.
 _PRODUCER_BACKLOG_SIZE = 64
 # Backpressure threshold: push stream sleeps when buffered audio exceeds this.
-_PRODUCER_BUFFER_LIMIT_US = 30_000_000
-# Start join promotion once catchup processor lag is within this window of the history tail.
 _JOIN_PROMOTE_ARM_WINDOW_US = 2_000_000
 # Accept catchup output within this margin of the promotion target.
 _JOIN_PROMOTE_TOLERANCE_US = 50_000
 # Abort join catchup if promotion hasn't completed within this.
 _JOIN_PROMOTION_TIMEOUT_S = 15.0
+
+
+def _get_producer_buffer_limit_us(player: SendspinBasePlayer) -> int:
+    """Read producer buffer limit from provider config, fall back to default."""
+    try:
+        seconds = player.mass.config.get_raw_provider_config_value(
+            player.provider.instance_id, CONF_PRODUCER_BUFFER_LIMIT, DEFAULT_PRODUCER_BUFFER_LIMIT
+        )
+        return int(seconds) * 1_000_000
+    except (KeyError, ValueError, AttributeError):
+        return DEFAULT_PRODUCER_BUFFER_LIMIT * 1_000_000
 # Retain committed history this far behind real-time for late-join backfill.
 # This pre-history also warms up ffmpeg's internal filter buffers so the DSP
 # output has settled by the time the member's channel goes live.
@@ -545,7 +559,7 @@ class SendspinPlaybackSession:
         processor = _BufferedFfmpegProcessor(ffmpeg_obj, self._pcm_format)
         await processor.start()
         # Bounded queue sized to hold the full buffer duration with some headroom.
-        queue_size = (_PRODUCER_BUFFER_LIMIT_US // _PRODUCER_SLICE_US) + _PRODUCER_BACKLOG_SIZE
+        queue_size = (_get_producer_buffer_limit_us(self.player) // _PRODUCER_SLICE_US) + _PRODUCER_BACKLOG_SIZE
         input_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=queue_size)
 
         async with self._state_lock:
@@ -857,7 +871,7 @@ class SendspinPlaybackSession:
                     # Stream stopped since it was replaced by another stream
                     self.player.logger.debug("Stopping commit loop due to stopped push stream")
                     break
-                await push_stream.sleep_to_limit_buffer(_PRODUCER_BUFFER_LIMIT_US)
+                await push_stream.sleep_to_limit_buffer(_get_producer_buffer_limit_us(self.player))
                 commit_now_us = push_stream.now_us()
                 committed_history_chunk = _HistoryChunk(
                     start_time_us=int(commit_start_us),
@@ -1400,7 +1414,7 @@ class SendspinPlaybackSession:
             return
         self.player.logger.debug("Waiting for client buffer drain before stream/end")
         # Safety timeout: never wait longer than the max buffer depth.
-        deadline = time.monotonic() + (_PRODUCER_BUFFER_LIMIT_US / 1_000_000)
+        deadline = time.monotonic() + (_get_producer_buffer_limit_us(self.player) / 1_000_000)
         while time.monotonic() < deadline:
             t0 = time.monotonic()
             await ps.sleep_to_limit_buffer(0)

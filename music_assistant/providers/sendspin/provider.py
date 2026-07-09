@@ -23,6 +23,7 @@ from aiosendspin.server import (
     SendspinServer,
 )
 from music_assistant_models.enums import (
+    ConfigEntryType,
     EventType,
     IdentifierType,
     PlayerFeature,
@@ -30,6 +31,7 @@ from music_assistant_models.enums import (
     ProviderFeature,
 )
 from music_assistant_models.errors import AlreadyRegisteredError, SetupFailedError
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 
 from music_assistant.constants import (
     CONF_ENABLED,
@@ -49,8 +51,10 @@ from music_assistant.providers.sendspin.bridge_role import (
     BridgePlayerRole,
 )
 from music_assistant.providers.sendspin.constants import (
+    CONF_PRODUCER_BUFFER_LIMIT,
     CONF_SENDSPIN_STATIC_DELAY,
     CONF_VIRTUAL_PLAYER_OWNER,
+    DEFAULT_PRODUCER_BUFFER_LIMIT,
     VIRTUAL_PLAYER_ID_PREFIX,
 )
 from music_assistant.providers.sendspin.player import (
@@ -101,6 +105,31 @@ def _manual_client_url(address: str) -> str:
         f"ws://{format_ip_for_url(parsed_address.hostname)}:"
         f"{parsed_address.port or DEFAULT_SENDSPIN_CLIENT_PORT}"
         f"{parsed_address.path or DEFAULT_SENDSPIN_CLIENT_PATH}"
+    )
+
+
+async def get_config_entries(
+    mass: MusicAssistant,
+    instance_id: str | None = None,
+    action: str | None = None,
+    values: dict[str, ConfigValueType] | None = None,
+) -> tuple[ConfigEntry, ...]:
+    """Return Config entries for the Sendspin provider.
+
+    :param instance_id: id of an existing provider instance (None if new instance setup).
+    :param action: [optional] action key called from config entries UI.
+    :param values: the (intermediate) raw values for config entries sent with the action.
+    """
+    return (
+        ConfigEntry(
+            key=CONF_PRODUCER_BUFFER_LIMIT,
+            type=ConfigEntryType.INTEGER,
+            range=(10, 600),
+            default_value=DEFAULT_PRODUCER_BUFFER_LIMIT,
+            required=False,
+            advanced=True,
+            category="sendspin_producer_buffer_limit_category",
+        ),
     )
 
 
