@@ -110,6 +110,7 @@ CONF_FLOW_MODE_SAMPLE_RATE: Final[str] = "flow_mode_sample_rate"
 CONF_LOG_LEVEL: Final[str] = "log_level"
 CONF_HIDE_GROUP_CHILDS: Final[str] = "hide_group_childs"
 CONF_CROSSFADE_DURATION: Final[str] = "crossfade_duration"
+CONF_PREFETCH_TRACK_COUNT: Final[str] = "prefetch_track_count"
 CONF_BIND_IP: Final[str] = "bind_ip"
 CONF_BIND_PORT: Final[str] = "bind_port"
 CONF_PUBLISH_IP: Final[str] = "publish_ip"
@@ -452,6 +453,18 @@ CONF_ENTRY_CROSSFADE_DURATION = ConfigEntry(
     category="crossfade",
     depends_on=CONF_CROSSFADE_MODE,
     depends_on_value=CrossfadeMode.STANDARD_CROSSFADE.value,
+)
+
+# Prefetch track count: how many upcoming tracks to preload into the AudioBuffer.
+# 0 = disabled (previous behaviour); higher values improve gapless playback at the cost
+# of additional memory and background work.
+DEFAULT_PREFETCH_TRACK_COUNT = 3
+CONF_ENTRY_PREFETCH_TRACK_COUNT = ConfigEntry(
+    key=CONF_PREFETCH_TRACK_COUNT,
+    type=ConfigEntryType.INTEGER,
+    range=(0, 20),
+    default_value=DEFAULT_PREFETCH_TRACK_COUNT,
+    category="audio",
 )
 
 

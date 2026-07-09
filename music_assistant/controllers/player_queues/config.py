@@ -29,6 +29,7 @@ from music_assistant_models.enums import (
 from music_assistant.constants import (
     CONF_CROSSFADE_MODE,
     CONF_ENTRY_CROSSFADE_DURATION,
+    CONF_ENTRY_PREFETCH_TRACK_COUNT,
     CONF_VALUE_DISABLED,
     CONF_VALUE_ENABLED,
     CONF_VALUE_GLOBAL,
@@ -102,6 +103,7 @@ def core_config_entries(mass: MusicAssistant) -> tuple[ConfigEntry, ...]:
         *_autoplay_entries(mass, None, per_queue=False),
         *_crossfade_entries(mass, per_queue=False),
         _volume_normalization_entry(per_queue=False),
+        CONF_ENTRY_PREFETCH_TRACK_COUNT,
     )
 
 

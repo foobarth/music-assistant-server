@@ -754,9 +754,30 @@ class SendspinPlaybackSession:
 
         async def _produce_pending_chunks() -> None:
             nonlocal pending_duration_us
-            audio_source = self.player.mass.streams.get_stream(
-                media, self._pcm_format, self.player.player_id
-            )
+            # check whether a prefetched AudioBuffer already exists for the current
+            # queue item; if so, stream from the buffer instead of opening a new
+            # upstream connection (reduces latency and upstream load)
+            audio_source = None
+            if media.queue_item_id:
+                if queue := self.player.mass.players.get_active_queue(self.player):
+                    if queue_item := self.player.mass.player_queues.get_item(
+                        queue.queue_id, media.queue_item_id
+                    ):
+                        if (
+                            queue_item.streamdetails
+                            and queue_item.streamdetails.buffer
+                            and queue_item.streamdetails.buffer.is_valid()
+                        ):
+                            self.player.logger.debug(
+                                "Using prefetched buffer for track %s", media.title
+                            )
+                            audio_source = queue_item.streamdetails.buffer.get_stream(
+                                output_format=self._pcm_format
+                            )
+            if audio_source is None:
+                audio_source = self.player.mass.streams.get_stream(
+                    media, self._pcm_format, self.player.player_id
+                )
             completed = False
             try:
                 async for chunk in audio_source:

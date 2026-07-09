@@ -23,6 +23,9 @@ from music_assistant_models.errors import (
 )
 
 from music_assistant.constants import (
+    CONF_PLAYER_QUEUES,
+    CONF_PREFETCH_TRACK_COUNT,
+    DEFAULT_PREFETCH_TRACK_COUNT,
     VERBOSE_LOG_LEVEL,
 )
 from music_assistant.controllers.player_queues.base import _PlayerQueuesBase
@@ -37,52 +40,75 @@ class StreamFeederMixin(_PlayerQueuesBase):
 
     def prepare_next_audio_buffer(self, queue_id: str) -> None:
         """
-        Prepare the AudioBuffer for the next track in the queue.
+        Prepare AudioBuffers for the next tracks in the queue.
 
         Called ~30-60 seconds before the current track ends to ensure
-        the buffer is warm when the next track starts playing.
+        buffers are warm when upcoming tracks start playing. The number of
+        tracks to prefetch is controlled by the ``prefetch_track_count``
+        core configuration option (default 3, 0 = disabled).
         """
         queue = self.get(queue_id)
         if not queue or not queue.next_item:
             return
-        next_item = queue.next_item
-        # AudioSource items are realtime/live and bypass the AudioBuffer
-        if next_item.media_type == MediaType.AUDIO_SOURCE:
+        # read the prefetch count from the core config at call time so a
+        # runtime change takes effect on the next tick without a reload
+        prefetch_count = self.mass.config.get_raw_core_config_value(
+            CONF_PLAYER_QUEUES, CONF_PREFETCH_TRACK_COUNT, DEFAULT_PREFETCH_TRACK_COUNT
+        )
+        if prefetch_count <= 0:
             return
-        # guard against race condition where queue.next_item still points to the
-        # currently playing track because the player state hasn't been updated yet
-        if queue.current_item and next_item.queue_item_id == queue.current_item.queue_item_id:
+        queue_items = self._queue_data[queue_id].items
+        current_index = queue.current_index
+        if current_index is None:
             return
-        # check if buffer already exists and is valid
-        if (
-            next_item.streamdetails
-            and next_item.streamdetails.buffer
-            and next_item.streamdetails.buffer.is_valid()
-        ):
-            return
+        # iterate over the next N tracks, skipping AudioSource items
+        for offset in range(1, prefetch_count + 1):
+            next_index = current_index + offset
+            if next_index >= len(queue_items):
+                break
+            next_item = queue_items[next_index]
+            # AudioSource items are realtime/live and bypass the AudioBuffer
+            if next_item.media_type == MediaType.AUDIO_SOURCE:
+                continue
+            # guard against race condition where the item at this index
+            # still points to the currently playing track
+            if queue.current_item and next_item.queue_item_id == queue.current_item.queue_item_id:
+                continue
+            # check if buffer already exists and is valid
+            if (
+                next_item.streamdetails
+                and next_item.streamdetails.buffer
+                and next_item.streamdetails.buffer.is_valid()
+            ):
+                continue
+            # track 1 (the immediate next): block until ready
+            # tracks 2+: non-blocking background prefetch
+            wait_ready = offset == 1
 
-        async def _do_prepare() -> None:
-            try:
-                # fetch streamdetails if not yet available
-                if not next_item.streamdetails:
-                    next_item.streamdetails = await self.mass.streams.audio.get_stream_details(
-                        queue_item=next_item
+            async def _do_prepare(item: QueueItem = next_item, wr: bool = wait_ready) -> None:
+                try:
+                    # fetch streamdetails if not yet available
+                    if not item.streamdetails:
+                        item.streamdetails = await self.mass.streams.audio.get_stream_details(
+                            queue_item=item
+                        )
+                    self.logger.debug(
+                        "Preparing audio buffer for %s %s on queue %s (wait_ready=%s)",
+                        "next track" if wr else "prefetch track",
+                        item.name,
+                        queue.display_name,
+                        wr,
                     )
-                self.logger.debug(
-                    "Preparing audio buffer for next track %s on queue %s",
-                    next_item.name,
-                    queue.display_name,
-                )
-                await AudioBuffer.get_buffer(
-                    self.mass,
-                    next_item.streamdetails,
-                    reason="prepare_next",
-                    wait_ready=True,
-                )
-            except (AudioError, MediaNotFoundError) as err:
-                self.logger.debug("Failed to prepare next audio buffer: %s", err)
+                    await AudioBuffer.get_buffer(
+                        self.mass,
+                        item.streamdetails,
+                        reason="prepare_next" if wr else "prefetch",
+                        wait_ready=wr,
+                    )
+                except (AudioError, MediaNotFoundError) as err:
+                    self.logger.debug("Failed to prepare audio buffer: %s", err)
 
-        self.mass.create_task(_do_prepare)
+            self.mass.create_task(_do_prepare)
 
     def _enqueue_next_item(self, queue_id: str, next_item: QueueItem | None) -> None:
         """Enqueue the next item on the player."""
@@ -178,19 +204,24 @@ class StreamFeederMixin(_PlayerQueuesBase):
         """
         Clean up audio buffers for queue items that are no longer needed.
 
-        This clears buffers for items at index <= current_index - 2, keeping only:
-        - The previous track (current_index - 1)
-        - The current track (current_index)
-        - The next track (current_index + 1, handled by preloading)
+        This clears buffers for items at index <= current_index - (prefetch_count + 1),
+        keeping the current track, the previous track, and at least ``prefetch_count``
+        future tracks (plus any actively prefetching ones) alive.
 
         :param queue_id: The queue ID to clean up buffers for.
         :param current_index: The current playing index in the queue.
         """
-        if current_index < 2:
+        # read the prefetch count at call time so a config change applies promptly
+        prefetch_count = self.mass.config.get_raw_core_config_value(
+            CONF_PLAYER_QUEUES, CONF_PREFETCH_TRACK_COUNT, DEFAULT_PREFETCH_TRACK_COUNT
+        )
+        # keep: the current track + prefetch_count future tracks + 1 previous track
+        keep_window = prefetch_count + 1
+        if current_index < keep_window + 1:
             return  # Nothing to clean up yet
 
         queue_items = queue_data.items if (queue_data := self._queue_data.get(queue_id)) else []
-        cleanup_threshold = current_index - 2
+        cleanup_threshold = current_index - keep_window - 1
         buffers_cleared = 0
 
         for idx, item in enumerate(queue_items):
