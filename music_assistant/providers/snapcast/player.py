@@ -58,6 +58,10 @@ class TrackedPlayerState(TypedDict, total=False):
 class SnapCastPlayer(Player):
     """SnapCastPlayer."""
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        return 300
+
     def __init__(
         self,
         provider: SnapCastProvider,

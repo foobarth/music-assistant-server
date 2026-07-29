@@ -54,6 +54,10 @@ class ChromecastPlayer(Player):
 
     active_cast_group: str | None = None
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        return 15
+
     def __init__(
         self,
         provider: ChromecastProvider,
