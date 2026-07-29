@@ -90,9 +90,10 @@ def _compute_effective_buffer_us(player: Player) -> int:
 
     # 1. Provider preference from current queue item
     provider_pref: int | None = None
+    domain: str | None = None
     try:
         if player.active_queue and (item := player.active_queue.current_item):
-            domain = item.provider.split("--")[0] if item.provider else None
+            domain = item.media_item.provider.split("--")[0] if item.media_item else None
             if domain:
                 mass = player.mass
                 if mass and (prov := mass.get_provider(domain)):
