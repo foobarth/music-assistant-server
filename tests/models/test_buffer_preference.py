@@ -10,7 +10,6 @@ from music_assistant.models.music_provider import MusicProvider
 from music_assistant.models.player import Player
 from music_assistant.providers.sendspin.playback import _compute_effective_buffer_us
 
-
 # ── MusicProvider ──────────────────────────────────────────────────────────
 
 
