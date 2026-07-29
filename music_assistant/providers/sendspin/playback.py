@@ -17,7 +17,7 @@ from aiosendspin.server.roles.player.v1 import PlayerV1Role
 from music_assistant_models.enums import ContentType, MediaType
 from music_assistant_models.media_items.audio_format import AudioFormat
 
-from music_assistant.constants import CONF_OUTPUT_CHANNELS
+from music_assistant.constants import CONF_OUTPUT_CHANNELS, VERBOSE_LOG_LEVEL
 from music_assistant.controllers.streams.audio_processing import get_media_session_id
 from music_assistant.helpers.audio import iter_pcm_slices
 from music_assistant.helpers.ffmpeg import FFMpeg
@@ -113,6 +113,12 @@ def _compute_effective_buffer_us(player: Player) -> int:
         target_s = min(provider_pref, server_absolute_max_s)
     if player_cap is not None:
         target_s = min(target_s, player_cap)
+
+    player.logger.log(
+        VERBOSE_LOG_LEVEL,
+        "Buffer limit for %s: %ss (pref=%s, cap=%s)",
+        domain, target_s, provider_pref, player_cap,
+    )
 
     return target_s * 1_000_000
 # Start join promotion once catchup processor lag is within this window of the history tail.
