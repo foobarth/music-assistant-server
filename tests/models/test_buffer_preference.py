@@ -57,7 +57,9 @@ def _make_player_with_mocks(
 
     queue = MagicMock()
     item = MagicMock()
-    item.provider = f"{provider_domain}--test"
+    media_item = MagicMock()
+    media_item.provider = f"{provider_domain}--test"
+    item.media_item = media_item
     queue.current_item = item
     mass.player_queues = MagicMock()
 
@@ -127,8 +129,6 @@ def test_compute_buffer_no_current_item() -> None:
 
 def test_compute_buffer_streaming_provider() -> None:
     """Streaming provider (None) with player cap = 300 -> 30s default."""
-    player = _make_player_with_mocks(
-        provider_pref=None, player_cap=300, provider_domain="spotify"
-    )
+    player = _make_player_with_mocks(provider_pref=None, player_cap=300, provider_domain="spotify")
     result = _compute_effective_buffer_us(player)
     assert result == 30_000_000
