@@ -77,29 +77,24 @@ _PRODUCER_BUFFER_LIMIT_US = 30_000_000
 
 def _compute_effective_buffer_us(player: Player) -> int:
     """
-    Compute effective buffer limit in microseconds.
+    Compute effective buffer limit (microseconds).
 
     Applies the three-layer model:
       effective = min(provider_pref or 30, player_cap or 600, 600)
-
-    Provider preference comes from the current queue item's music provider.
-    Player cap comes from the player hardware constraints.
     """
     server_default_s = 30
     server_absolute_max_s = 600
 
-    # 1. Provider preference from current queue item
+    # 1. Resolve provider preference from active queue item
     provider_pref: int | None = None
-    domain: str | None = None
-    try:
-        if player.active_queue and (item := player.active_queue.current_item):
-            domain = item.streamdetails.provider.split("--")[0] if item.streamdetails else None
-            if domain:
-                mass = player.mass
-                if mass and (prov := mass.get_provider(domain)):
-                    provider_pref = getattr(prov, "buffer_preference_seconds", None)
-    except (KeyError, ValueError, AttributeError, RuntimeError):
-        pass
+    provider_domain: str | None = None
+    queue = player.mass.player_queues.get_active_queue(player.player_id)
+    if queue and (item := queue.current_item) and (sd := item.streamdetails):
+        provider_domain = sd.provider.split("--")[0]
+        if provider_domain:
+            prov = player.mass.get_provider(provider_domain)
+            if prov is not None:
+                provider_pref = prov.buffer_preference_seconds
 
     # 2. Player cap
     player_cap = player.max_client_buffer_seconds
@@ -116,7 +111,7 @@ def _compute_effective_buffer_us(player: Player) -> int:
 
     player.logger.debug(
         "Buffer limit for %s: %ss (pref=%s, cap=%s)",
-        domain, target_s, provider_pref, player_cap,
+        provider_domain, target_s, provider_pref, player_cap,
     )
 
     return target_s * 1_000_000
