@@ -3016,6 +3016,20 @@ class Player(ABC):
         """
         return self.__stop_called
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        """
+        Maximum safe client-side buffer in seconds for this player hardware.
+
+        If the device is known to choke on large audio buffers (e.g. Chromecast
+        OOM issues), override this to a low value. The server will never exceed
+        this cap when computing the effective buffer target.
+
+        * ``None`` (default) — unknown, use server default (30s).
+        * ``N`` — hard cap in seconds.
+        """
+        return None
+
     def __hash__(self) -> int:
         """Return a hash of the Player."""
         return hash(self.player_id)
