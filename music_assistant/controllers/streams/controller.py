@@ -109,7 +109,7 @@ from music_assistant.providers.universal_group.player import UniversalGroupPlaye
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import CoreConfig
-    from music_assistant_models.player import PlayerMedia
+    from music_assistant_models.player import Player, PlayerMedia
     from music_assistant_models.player_queue import PlayerQueue
     from music_assistant_models.queue_item import QueueItem
     from music_assistant_models.streamdetails import StreamMetadata
@@ -900,6 +900,57 @@ class StreamsController(CoreController):
                         exc_info=True,
                     )
 
+    def _calc_flow_readrate(self, player: Player, queue: PlayerQueue) -> list[str]:
+        """
+        Calculate ffmpeg -readrate args from provider preference and player cap.
+
+        The readrate determines how fast the server encodes and pushes audio
+        to the player. A higher rate allows the player's buffer to grow,
+        surviving network dropouts. For streaming providers (default None),
+        the rate stays at 1.1x (same as today). For local/podcast content
+        (buffer_preference_seconds = 0), the rate increases to fill the
+        player's buffer faster.
+
+        Returns a list of extra ffmpeg input args.
+        """
+        server_default_s = 30
+        server_absolute_max_s = 600
+
+        # 1. Provider preference from start queue item
+        provider_pref: int | None = None
+        if (item := queue.current_item) and item.media_item:
+            domain = item.media_item.provider.split("--")[0] if item.media_item.provider else None
+            if domain:
+                prov = self.mass.get_provider(domain)
+                if prov is not None:
+                    provider_pref = getattr(prov, "buffer_preference_seconds", None)
+
+        # 2. Player cap
+        player_cap = player.max_client_buffer_seconds
+
+        # 3. Compute effective target
+        if provider_pref is None:
+            target_s = server_default_s
+        elif provider_pref == 0:
+            target_s = server_absolute_max_s
+        else:
+            target_s = min(provider_pref, server_absolute_max_s)
+        if player_cap is not None:
+            target_s = min(target_s, player_cap)
+
+        # 4. Translate to readrate: fill target seconds in ~60s wall time
+        readrate = max(target_s / 60, 1.1)
+        readrate = min(readrate, 10.0)
+        burst = int(readrate * 5)
+
+        self.logger.log(
+            VERBOSE_LOG_LEVEL,
+            "Flow readrate for %s: %.1fx (target=%ss, pref=%s, cap=%s)",
+            player.player_id, readrate, target_s, provider_pref, player_cap,
+        )
+
+        return ["-readrate", f"{readrate:.1f}", "-readrate_initial_burst", str(burst)]
+
     async def serve_queue_flow_stream(self, request: web.Request) -> web.StreamResponse:  # noqa: PLR0915
         """Stream Queue Flow audio to player."""
         self._log_request(request)
@@ -1016,12 +1067,8 @@ class StreamsController(CoreController):
             input_format=flow_pcm_format,
             output_format=output_format,
             filter_params=output_plan.filter_params,
-            # we need to slowly feed the music to avoid the player stopping and later
-            # restarting (or completely failing) the audio stream by keeping the buffer short.
-            # this is reported to be an issue especially with Chromecast players.
-            # see for example: https://github.com/music-assistant/support/issues/3717
-            # allow buffer ahead of a few seconds and read rest in (near) realtime
-            extra_input_args=["-readrate", "1.1", "-readrate_initial_burst", "5"],
+            # allow buffer ahead based on provider preference and player cap
+            extra_input_args=self._calc_flow_readrate(player, queue),
             chunk_size=icy_meta_interval if enable_icy else calculate_content_length(output_format),
         )
         try:
