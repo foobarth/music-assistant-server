@@ -175,6 +175,10 @@ class Audiobookshelf(RecommendationPayloadMixin, MusicProvider):
 
     _on_unload_callbacks: list[Callable[[], None]]
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     def __init__(
         self,
         mass: MusicAssistant,

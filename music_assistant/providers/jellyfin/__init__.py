@@ -83,6 +83,10 @@ async def setup(
 class JellyfinProvider(MusicProvider):
     """Provider for a jellyfin music library."""
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """Return Config entries to setup this provider."""
         return ()

@@ -65,6 +65,10 @@ class TuneInProvider(MusicProvider):
     """Provider implementation for Tune In."""
 
     _throttler: Throttler
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
     _browse_url_map: dict[str, str]
 
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:

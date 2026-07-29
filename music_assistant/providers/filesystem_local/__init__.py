@@ -172,6 +172,10 @@ class LocalFileSystemProvider(MusicProvider):
     # parallel workers per sync; subclasses lower this for slower transports
     _SYNC_CONCURRENCY: ClassVar[int] = 16
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     def __init__(
         self,
         mass: MusicAssistant,

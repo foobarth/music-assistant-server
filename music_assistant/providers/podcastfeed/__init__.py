@@ -68,6 +68,10 @@ async def setup(
 class PodcastMusicprovider(MusicProvider):
     """Podcast RSS Feed Music Provider."""
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """Return Config entries to configure this provider."""
         return ()

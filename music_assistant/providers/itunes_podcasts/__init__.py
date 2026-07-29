@@ -100,6 +100,10 @@ class ITunesPodcastsProvider(MusicProvider):
 
     throttler: ThrottlerManager
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """Return Config entries to setup this provider."""
         country_codes = await asyncio.to_thread(get_country_codes)
