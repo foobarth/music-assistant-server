@@ -314,6 +314,9 @@ CONFIGURABLE_CORE_CONTROLLERS = (
     "tasks",
 )
 VERBOSE_LOG_LEVEL: Final[int] = 5
+# Sentinel value for MusicProvider.buffer_preference_seconds meaning "no limit".
+# See _compute_effective_buffer_us() in sendspin/playback.py for the three-layer model.
+BUFFER_PREFERENCE_UNLIMITED: Final[int] = 0
 PROVIDERS_WITH_SHAREABLE_URLS = ("spotify", "qobuz", "apple_music", "deezer")
 
 

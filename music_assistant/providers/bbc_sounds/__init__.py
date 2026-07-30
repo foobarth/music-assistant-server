@@ -47,7 +47,12 @@ from sounds import (
 from sounds import PodcastEpisode as SoundsPodcastEpisode
 from sounds.models import MenuItem, Playlist
 
-from music_assistant.constants import CONF_ENTRY_UNOFFICIAL_PROVIDER, CONF_PASSWORD, CONF_USERNAME
+from music_assistant.constants import (
+    BUFFER_PREFERENCE_UNLIMITED,
+    CONF_ENTRY_UNOFFICIAL_PROVIDER,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+)
 from music_assistant.controllers.cache import use_cache
 from music_assistant.helpers.datetime import LOCAL_TIMEZONE
 from music_assistant.mass import MusicAssistant
@@ -85,6 +90,10 @@ class BBCSoundsProvider(RecommendationPayloadMixin, MusicProvider):
 
     # keep the pre-refactor 3h refresh interval for the experience-menu payload
     recommendation_payload_ttl = 3600 * 3
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     client: SoundsClient
     menu: Menu | None = None

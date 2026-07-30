@@ -17,7 +17,7 @@ from aiosendspin.server.roles.player.v1 import PlayerV1Role
 from music_assistant_models.enums import ContentType, MediaType
 from music_assistant_models.media_items.audio_format import AudioFormat
 
-from music_assistant.constants import CONF_OUTPUT_CHANNELS
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED, CONF_OUTPUT_CHANNELS
 from music_assistant.controllers.streams.audio_processing import get_media_session_id
 from music_assistant.helpers.audio import iter_pcm_slices
 from music_assistant.helpers.ffmpeg import FFMpeg
@@ -102,17 +102,23 @@ def _compute_effective_buffer_us(player: Player) -> int:
     # 3. Compute target
     if provider_pref is None:
         target_s = server_default_s
-    elif provider_pref == 0:
+    elif provider_pref == BUFFER_PREFERENCE_UNLIMITED:
         target_s = server_absolute_max_s
     else:
         target_s = min(provider_pref, server_absolute_max_s)
     if player_cap is not None:
         target_s = min(target_s, player_cap)
 
-    player.logger.debug(
-        "Buffer limit for %s: %ss (pref=%s, cap=%s)",
-        provider_domain, target_s, provider_pref, player_cap,
-    )
+    # Log once per track (sentinel keyed on player)
+    player_key = player.player_id
+    last_log = getattr(_compute_effective_buffer_us, "_last_log", {})
+    if last_log.get(player_key) != target_s:
+        last_log[player_key] = target_s
+        _compute_effective_buffer_us._last_log = last_log
+        player.logger.info(
+            "Buffer limit for %s: %ss (pref=%s, cap=%s)",
+            provider_domain, target_s, provider_pref, player_cap,
+        )
 
     return target_s * 1_000_000
 # Start join promotion once catchup processor lag is within this window of the history tail.

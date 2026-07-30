@@ -41,6 +41,7 @@ from music_assistant_models.media_items import AudioFormat
 
 from music_assistant.constants import (
     ANNOUNCE_ALERT_FILE,
+    BUFFER_PREFERENCE_UNLIMITED,
     CONF_BACKGROUND_SCAN_CONCURRENCY,
     CONF_BIND_IP,
     CONF_BIND_PORT,
@@ -918,8 +919,8 @@ class StreamsController(CoreController):
 
         # 1. Provider preference from start queue item
         provider_pref: int | None = None
-        if (item := queue.current_item) and item.media_item:
-            domain = item.media_item.provider.split("--")[0] if item.media_item.provider else None
+        if (item := queue.current_item) and item.streamdetails:
+            domain = item.streamdetails.provider.split("--")[0]
             if domain:
                 prov = self.mass.get_provider(domain)
                 if prov is not None:
@@ -931,7 +932,7 @@ class StreamsController(CoreController):
         # 3. Compute effective target
         if provider_pref is None:
             target_s = server_default_s
-        elif provider_pref == 0:
+        elif provider_pref == BUFFER_PREFERENCE_UNLIMITED:
             target_s = server_absolute_max_s
         else:
             target_s = min(provider_pref, server_absolute_max_s)
@@ -965,8 +966,8 @@ class StreamsController(CoreController):
         server_absolute_max_s = 120  # 2 min max for in-process queue
 
         provider_pref: int | None = None
-        if queue and (item := queue.current_item) and item.media_item:
-            domain = item.media_item.provider.split("--")[0] if item.media_item.provider else None
+        if queue and (item := queue.current_item) and item.streamdetails:
+            domain = item.streamdetails.provider.split("--")[0]
             if domain:
                 prov = self.mass.get_provider(domain)
                 if prov is not None:
@@ -976,7 +977,7 @@ class StreamsController(CoreController):
 
         if provider_pref is None:
             target_s = server_default_s
-        elif provider_pref == 0:
+        elif provider_pref == BUFFER_PREFERENCE_UNLIMITED:
             target_s = server_absolute_max_s
         else:
             target_s = min(provider_pref, server_absolute_max_s)
