@@ -85,7 +85,7 @@ jobs:
           context: server
           push: true
           tags: |
-            ghcr.io/foobarth/music-assistant-server:testing-connection-resilience
+            ghcr.io/foobarth/music-assistant-server:testing-local
             ghcr.io/foobarth/music-assistant-server:${{ steps.version.outputs.image_tag }}
           build-args: |
             MASS_VERSION=${{ steps.version.outputs.mass_version }}
