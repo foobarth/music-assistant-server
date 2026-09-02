@@ -113,7 +113,6 @@ def _compute_effective_buffer_us(player: Player) -> int:
     if player_cap is not None:
         target_s = min(target_s, player_cap)
 
-<<<<<<< HEAD
     # Log once per track (sentinel keyed on player)
     player_key = player.player_id
     last_log = getattr(_compute_effective_buffer_us, "_last_log", {})
