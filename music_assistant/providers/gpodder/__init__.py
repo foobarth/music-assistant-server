@@ -94,6 +94,10 @@ async def setup(
 class GPodder(MusicProvider):
     """gPodder MusicProvider."""
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """
         Return the (options) config entries for the gPodder provider.

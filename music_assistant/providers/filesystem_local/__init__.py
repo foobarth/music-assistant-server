@@ -218,6 +218,10 @@ class LocalFileSystemProvider(MusicProvider):
     _sync_tracks: bool = True
     _sync_playlists: bool = True
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
+
     def __init__(
         self,
         mass: MusicAssistant,

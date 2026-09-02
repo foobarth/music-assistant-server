@@ -171,6 +171,10 @@ class PocketCastsProvider(MusicProvider):
     """Provider for Pocket Casts podcast service."""
 
     _client: PocketCastsClient
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return 0
     # episode uuids already mirrored to Pocket Casts Up Next/history this session, keyed as a
     # set since multi-room playback can have several episodes in progress on one instance
     _announced_episodes: set[str]

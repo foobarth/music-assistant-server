@@ -16,6 +16,7 @@ from music_assistant_models.errors import MediaNotFoundError
 from music_assistant_models.media_items import AudioFormat, ProviderMapping, SoundEffect
 from music_assistant_models.streamdetails import StreamDetails
 
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED
 from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
@@ -45,6 +46,10 @@ async def setup(
 
 class RainyMoodProvider(MusicProvider):
     """Music provider serving a looping rain ambience from rainymood.com."""
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     @property
     def max_concurrent_streams(self) -> None:

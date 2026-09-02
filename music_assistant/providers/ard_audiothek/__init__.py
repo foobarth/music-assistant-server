@@ -34,7 +34,7 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant.constants import CONF_PASSWORD
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED, CONF_PASSWORD
 from music_assistant.controllers.cache import use_cache
 from music_assistant.helpers.datetime import from_utc_timestamp, future_timestamp, utc
 from music_assistant.helpers.podcast_parsers import rank_episodes_by_date
@@ -144,6 +144,10 @@ class ARDAudiothek(MusicProvider):
     def max_concurrent_streams(self) -> None:
         """Allow unlimited concurrent upstream source streams."""
         return None
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """

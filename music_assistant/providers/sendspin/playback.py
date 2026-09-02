@@ -17,7 +17,7 @@ from aiosendspin.server.roles.player.v1 import PlayerV1Role
 from music_assistant_models.enums import ContentType, MediaType
 from music_assistant_models.media_items.audio_format import AudioFormat
 
-from music_assistant.constants import CONF_OUTPUT_CHANNELS
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED, CONF_OUTPUT_CHANNELS, VERBOSE_LOG_LEVEL
 from music_assistant.controllers.streams.audio_processing import get_media_session_id
 from music_assistant.helpers.audio import iter_pcm_slices
 from music_assistant.helpers.ffmpeg import FFMpeg
@@ -32,6 +32,7 @@ from music_assistant.providers.sendspin.bridge_role import (
 
 if TYPE_CHECKING:
     from music_assistant.helpers.dsp import ComplexFilter
+    from music_assistant.models.player import Player
 
     from .player import SendspinPlayer
     from .provider import SendspinProvider
@@ -74,7 +75,57 @@ _PRODUCER_SLICE_US = 100_000
 # Max pending chunks between producer and committer before the producer blocks.
 _PRODUCER_BACKLOG_SIZE = 64
 # Backpressure threshold: push stream sleeps when buffered audio exceeds this.
+# Replaced by _compute_effective_buffer_us() — kept as fallback constant.
 _PRODUCER_BUFFER_LIMIT_US = 30_000_000
+
+
+def _compute_effective_buffer_us(player: Player) -> int:
+    """
+    Compute effective buffer limit (microseconds).
+
+    Applies the three-layer model:
+      effective = min(provider_pref or 30, player_cap or 600, 600)
+    """
+    server_default_s = 30
+    server_absolute_max_s = 600
+
+    # 1. Resolve provider preference from active queue item
+    provider_pref: int | None = None
+    provider_domain: str | None = None
+    queue = player.mass.player_queues.get_active_queue(player.player_id)
+    if queue and (item := queue.current_item) and (sd := item.streamdetails):
+        provider_domain = sd.provider.split("--")[0]
+        if provider_domain:
+            prov = player.mass.get_provider(provider_domain)
+            if prov is not None:
+                provider_pref = prov.buffer_preference_seconds
+
+    # 2. Player cap
+    player_cap = player.max_client_buffer_seconds
+
+    # 3. Compute target
+    if provider_pref is None:
+        target_s = server_default_s
+    elif provider_pref == BUFFER_PREFERENCE_UNLIMITED:
+        target_s = server_absolute_max_s
+    else:
+        target_s = min(provider_pref, server_absolute_max_s)
+    if player_cap is not None:
+        target_s = min(target_s, player_cap)
+
+<<<<<<< HEAD
+    # Log once per track (sentinel keyed on player)
+    player_key = player.player_id
+    last_log = getattr(_compute_effective_buffer_us, "_last_log", {})
+    if last_log.get(player_key) != target_s:
+        last_log[player_key] = target_s
+        _compute_effective_buffer_us._last_log = last_log
+        player.logger.info(
+            "Buffer limit for %s: %ss (pref=%s, cap=%s)",
+            provider_domain, target_s, provider_pref, player_cap,
+        )
+
+    return target_s * 1_000_000
 # Start join promotion once catchup processor lag is within this window of the history tail.
 _JOIN_PROMOTE_ARM_WINDOW_US = 2_000_000
 # Accept catchup output within this margin of the promotion target.
@@ -567,7 +618,7 @@ class SendspinPlaybackSession:
         processor = _BufferedFfmpegProcessor(ffmpeg_obj, self._pcm_format)
         await processor.start()
         # Bounded queue sized to hold the full buffer duration with some headroom.
-        queue_size = (_PRODUCER_BUFFER_LIMIT_US // _PRODUCER_SLICE_US) + _PRODUCER_BACKLOG_SIZE
+        queue_size = (_compute_effective_buffer_us(self.player) // _PRODUCER_SLICE_US) + _PRODUCER_BACKLOG_SIZE
         input_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=queue_size)
 
         async with self._state_lock:
@@ -896,7 +947,7 @@ class SendspinPlaybackSession:
                     # Stream stopped since it was replaced by another stream
                     self.player.logger.debug("Stopping commit loop due to stopped push stream")
                     break
-                await push_stream.sleep_to_limit_buffer(_PRODUCER_BUFFER_LIMIT_US)
+                await push_stream.sleep_to_limit_buffer(_compute_effective_buffer_us(self.player))
                 commit_now_us = push_stream.now_us()
                 committed_history_chunk = _HistoryChunk(
                     start_time_us=int(commit_start_us),
@@ -1443,7 +1494,7 @@ class SendspinPlaybackSession:
             return
         self.player.logger.debug("Waiting for client buffer drain before stream/end")
         # Safety timeout: never wait longer than the max buffer depth.
-        deadline = time.monotonic() + (_PRODUCER_BUFFER_LIMIT_US / 1_000_000)
+        deadline = time.monotonic() + (_compute_effective_buffer_us(self.player) / 1_000_000)
         while time.monotonic() < deadline:
             t0 = time.monotonic()
             await ps.sleep_to_limit_buffer(0)

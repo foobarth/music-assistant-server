@@ -1857,6 +1857,23 @@ class MusicProvider(Provider):
                 )
         return cur_db_ids
 
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        """
+        Preferred client-side buffer in seconds for this provider's content.
+
+        Controls how much encoded audio the server attempts to keep in the
+        player's buffer ahead of playback. The server translates this into
+        the appropriate mechanism per player type.
+
+        * ``None`` (default - 30s) — safe for streaming providers with legal restrictions.
+        * ``0`` — unlimited. Suitable for local media, podcasts, audiobooks.
+        * ``N`` (>0) — explicit target in seconds.
+
+        Override in provider subclasses to signal buffering requirements.
+        """
+        return None
+
     # DO NOT OVERRIDE BELOW
 
     def get_default_library_sync_schedule(self, media_type: MediaType) -> TaskSchedule:

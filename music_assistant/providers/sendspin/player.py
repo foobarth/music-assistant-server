@@ -1198,6 +1198,10 @@ class SendspinPlayer(SendspinBasePlayer):
 
     _attr_type = PlayerType.PROTOCOL
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        return 300
+
     last_sent_artwork_url: str | None = None
     last_sent_artist_artwork_url: str | None = None
     _last_beat_queue_item_id: str | None = None

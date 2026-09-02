@@ -28,6 +28,7 @@ from music_assistant_models.errors import AudioError, InvalidDataError, MediaNot
 from music_assistant_models.media_items import AudioFormat, ProviderMapping, SoundEffect
 from music_assistant_models.streamdetails import StreamDetails
 
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED
 from music_assistant.helpers.process import check_output
 from music_assistant.helpers.tags import AudioTags, async_parse_tags
 from music_assistant.models.music_provider import MusicProvider
@@ -122,6 +123,10 @@ async def setup(
 
 class AmbientSoundsProvider(MusicProvider):
     """Music provider serving locally generated ambient sound loops."""
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     _render_dir: str
     _render_lock: asyncio.Lock

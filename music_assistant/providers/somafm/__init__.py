@@ -28,6 +28,7 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED
 from music_assistant.controllers.cache import use_cache
 from music_assistant.helpers.playlists import PlaylistItem, fetch_playlist
 from music_assistant.models.music_provider import MusicProvider
@@ -58,6 +59,10 @@ async def setup(
 
 class SomaFMProvider(MusicProvider):
     """Provider implementation for SomaFM Radio."""
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     @property
     def max_concurrent_streams(self) -> None:

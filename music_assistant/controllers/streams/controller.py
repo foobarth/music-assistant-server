@@ -1199,6 +1199,51 @@ class StreamsController(CoreController):
             if not serving:
                 await self._release_unstarted_audio_source(session, playback_session_id)
 
+        return ["-readrate", f"{readrate:.1f}", "-readrate_initial_burst", str(burst)]
+
+    def _calc_buffered_queue_size(
+        self, player: Player | None, queue: PlayerQueue | None
+    ) -> int:
+        """
+        Compute buffered() queue size from provider preference and player cap.
+
+        Used by Snapcast/AirPlay flow streams to determine how many PCM seconds
+        to buffer ahead. Same three-layer model as the ffmpeg readrate.
+        Returns at least 15s to ensure seamless playback.
+        """
+        server_default_s = 30
+        server_absolute_max_s = 120  # 2 min max for in-process queue
+
+        provider_pref: int | None = None
+        if queue and (item := queue.current_item) and item.media_item:
+            domain = item.media_item.provider.split("--")[0] if item.media_item.provider else None
+            if domain:
+                prov = self.mass.get_provider(domain)
+                if prov is not None:
+                    provider_pref = getattr(prov, "buffer_preference_seconds", None)
+
+        player_cap = player.max_client_buffer_seconds if player else None
+
+        if provider_pref is None:
+            target_s = server_default_s
+        elif provider_pref == 0:
+            target_s = server_absolute_max_s
+        else:
+            target_s = min(provider_pref, server_absolute_max_s)
+        if player_cap is not None:
+            target_s = min(target_s, player_cap)
+
+        result = max(target_s, 15)
+
+        player_id = player.player_id if player else "unknown"
+        self.logger.log(
+            VERBOSE_LOG_LEVEL,
+            "Buffered queue size for %s: %ss (pref=%s, cap=%s)",
+            player_id, result, provider_pref, player_cap,
+        )
+
+        return result
+
     async def serve_queue_flow_stream(self, request: web.Request) -> web.StreamResponse:  # noqa: PLR0915
         """Stream Queue Flow audio to player."""
         self._log_request(request)

@@ -65,6 +65,10 @@ class ChromecastPlayer(Player):
     # still reports our app is no longer proof that the session is usable
     app_quit_sent: bool = False
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        return 15
+
     def __init__(
         self,
         provider: ChromecastProvider,

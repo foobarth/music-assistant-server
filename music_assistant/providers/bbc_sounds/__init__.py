@@ -42,7 +42,7 @@ from sounds import (
 from sounds import PodcastEpisode as SoundsPodcastEpisode
 from sounds.models import LiveStation, MenuItem, Playlist
 
-from music_assistant.constants import CONF_ENTRY_UNOFFICIAL_PROVIDER, CONF_PASSWORD, CONF_USERNAME
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED, CONF_ENTRY_UNOFFICIAL_PROVIDER, CONF_PASSWORD, CONF_USERNAME
 from music_assistant.controllers.cache import use_cache
 from music_assistant.helpers import datetime
 from music_assistant.helpers.datetime import LOCAL_TIMEZONE
@@ -87,6 +87,11 @@ class BBCSoundsProvider(RecommendationPayloadMixin, MusicProvider):
     recommendation_payload_ttl = 3600 * 3
 
     client: SoundsClient
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
+
     menu: Menu | None = None
     menu_last_fetched: float | None = None
     logged_in: bool = False

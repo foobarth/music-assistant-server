@@ -35,6 +35,7 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails, StreamMetadata
 
+from music_assistant.constants import BUFFER_PREFERENCE_UNLIMITED
 from music_assistant.controllers.cache import use_cache
 from music_assistant.models.music_provider import MusicProvider
 
@@ -87,6 +88,10 @@ async def setup(
 
 class NTSProvider(MusicProvider):
     """Provider implementation for NTS Radio."""
+
+    @property
+    def buffer_preference_seconds(self) -> int | None:
+        return BUFFER_PREFERENCE_UNLIMITED
 
     _mixtapes: dict[str, str]
     _unknown_channels: set[str]

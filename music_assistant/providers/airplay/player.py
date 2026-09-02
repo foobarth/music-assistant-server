@@ -93,6 +93,10 @@ _DOCKER_SUBNET = ipaddress.ip_network("172.16.0.0/12")
 class AirPlayPlayer(Player):
     """Base implementation shared by all AirPlay players."""
 
+    @property
+    def max_client_buffer_seconds(self) -> int | None:
+        return 300
+
     def __init__(
         self,
         provider: AirPlayProvider,
